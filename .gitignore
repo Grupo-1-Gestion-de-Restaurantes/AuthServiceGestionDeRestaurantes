@@ -1,0 +1,107 @@
+# =========================
+# .NET Build
+# =========================
+bin/
+obj/
+out/
+Debug/
+Release/
+
+# =========================
+# Visual Studio / VS Code
+# =========================
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.code-workspace
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Test Results & Coverage
+# =========================
+TestResults/
+*.trx
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# =========================
+# NuGet
+# =========================
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# =========================
+# Publish Output
+# =========================
+publish/
+*.pubxml
+*.azurePubxml
+
+# =========================
+# Environment & Secrets
+# =========================
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
+.env
+.env.*
+secrets.json
+**/secrets/
+
+# =========================
+# Database files
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Certificates
+# =========================
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
+*.pem
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+docker-compose.*.yml
+*.dockerfile
+.dockerignore
+docker-data/
+*.tar
+
+# =========================
+# Node (si usas frontend)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
