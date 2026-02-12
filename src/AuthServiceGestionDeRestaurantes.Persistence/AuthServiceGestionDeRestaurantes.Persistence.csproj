@@ -1,5 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\AuthServiceGestionDeRestaurantes.Domain\AuthServiceGestionDeRestaurantes.Domain.csproj" />
+    <ProjectReference Include="..\AuthServiceGestionDeRestaurantes.Application\AuthServiceGestionDeRestaurantes.Application.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
