@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: authserviceGestionRestaurantes_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: DBGestionRestaurantes
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: admin
+    ports:
+     - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
