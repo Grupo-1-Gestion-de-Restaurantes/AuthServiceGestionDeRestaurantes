@@ -7,4 +7,5 @@ public class AuthResponseDto
     public string Token { get; set; } = string.Empty;
     public UserDetailsDto UserDetails { get; set; } = new();
     public DateTime ExpiresAt { get; set; }
+    public bool RequiresTwoFactor { get; set; }
 }

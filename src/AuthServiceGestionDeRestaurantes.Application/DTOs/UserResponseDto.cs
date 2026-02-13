@@ -14,4 +14,5 @@ public class UserResponseDto
     public bool IsEmailVerified { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool TwoFactorEnabled { get; set; }
 }

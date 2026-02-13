@@ -6,6 +6,8 @@ using AuthServiceGestionDeRestaurantes.Api.ModelBinders;
 using Serilog;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Npgsql;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,10 +25,18 @@ builder.Services.AddControllers(options =>
     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
+
+
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddApiDocumentation();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingPolicies();
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
+
+builder.Services.AddNpgsqlDataSource(builder.Configuration.GetConnectionString("DefaultConnection")!,
+    dataSourceBuilder => dataSourceBuilder.EnableDynamicJson());
 
 var app = builder.Build();
 

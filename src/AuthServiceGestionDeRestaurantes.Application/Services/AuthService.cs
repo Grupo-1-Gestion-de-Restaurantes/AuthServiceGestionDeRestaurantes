@@ -10,33 +10,58 @@ using AuthServiceGestionDeRestaurantes.Domain.Enums;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using AuthServiceGestionDeRestaurantes.Application.DTOs.Email;
+using AuthServiceGestionDeRestaurantes.Application.DTOs.TwoFactor;
 
 namespace AuthServiceGestionDeRestaurantes.Application.Services;
 
-public class AuthService(
-    IUserRepository userRepository,
-    IRoleRepository roleRepository,
-    IPasswordHashService passwordHashService,
-    IJwtTokenService jwtTokenService,
-    ICloudinaryService cloudinaryService,
-    IEmailService emailService,
-    IConfiguration configuration,
-    ILogger<AuthService> logger) : IAuthService
+public class AuthService : IAuthService
 {
-    private readonly ICloudinaryService _cloudinaryService = cloudinaryService;
+    private readonly IUserRepository _userRepository;
+    private readonly IRoleRepository _roleRepository;
+    private readonly IPasswordHashService _passwordHashService;
+    private readonly IJwtTokenService _jwtTokenService;
+    private readonly ICloudinaryService _cloudinaryService;
+    private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthService> _logger;
+    private readonly ITwoFactorService _twoFactorService;
+
+    public AuthService(
+        IUserRepository userRepository,
+        IRoleRepository roleRepository,
+        IPasswordHashService passwordHashService,
+        IJwtTokenService jwtTokenService,
+        ICloudinaryService cloudinaryService,
+        IEmailService emailService,
+        IConfiguration configuration,
+        ILogger<AuthService> logger,
+        ITwoFactorService twoFactorService)
+    {
+        _userRepository = userRepository;
+        _roleRepository = roleRepository;
+        _passwordHashService = passwordHashService;
+        _jwtTokenService = jwtTokenService;
+        _cloudinaryService = cloudinaryService;
+        _emailService = emailService;
+        _configuration = configuration;
+        _logger = logger;
+        _twoFactorService = twoFactorService;
+    }
+
+
     public async Task<RegisterResponseDto> RegisterAsync(RegisterDto registerDto)
     {
         // Verificar si el email ya existe
-        if (await userRepository.ExistsByEmailAsync(registerDto.Email))
+        if (await _userRepository.ExistsByEmailAsync(registerDto.Email))
         {
-            logger.LogRegistrationWithExistingEmail();
+            _logger.LogRegistrationWithExistingEmail();
             throw new BusinessException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Email already exists");
         }
 
         // Verificar si el username ya existe
-        if (await userRepository.ExistsByUsernameAsync(registerDto.Username))
+        if (await _userRepository.ExistsByUsernameAsync(registerDto.Username))
         {
-            logger.LogRegistrationWithExistingUsername();
+            _logger.LogRegistrationWithExistingUsername();
             throw new BusinessException(ErrorCodes.USERNAME_ALREADY_EXISTS, "Username already exists");
         }
 
@@ -48,7 +73,7 @@ public class AuthService(
             var (isValid, errorMessage) = FileValidator.ValidateImage(registerDto.ProfilePicture);
             if (!isValid)
             {
-                logger.LogWarning($"File validation failed: {errorMessage}");
+                _logger.LogWarning($"File validation failed: {errorMessage}");
                 throw new BusinessException(ErrorCodes.INVALID_FILE_FORMAT, errorMessage!);
             }
 
@@ -59,7 +84,7 @@ public class AuthService(
             }
             catch (Exception)
             {
-                logger.LogImageUploadError();
+                _logger.LogImageUploadError();
                 throw new BusinessException(ErrorCodes.IMAGE_UPLOAD_FAILED, "Failed to upload profile image");
             }
         }
@@ -77,7 +102,7 @@ public class AuthService(
         var userRoleId = UuidGenerator.GenerateUserId();
 
         // Obtener el rol por defecto (USER_ROLE) ya seedado en DB
-        var defaultRole = await roleRepository.GetByNameAsync(RoleConstants.USER_ROLE);
+        var defaultRole = await _roleRepository.GetByNameAsync(RoleConstants.USER_ROLE);
         if (defaultRole == null)
         {
             throw new InvalidOperationException($"Default role '{RoleConstants.USER_ROLE}' not found. Ensure seeding runs before registration.");
@@ -90,7 +115,7 @@ public class AuthService(
             Surname = registerDto.Surname,
             Username = registerDto.Username,
             Email = registerDto.Email.ToLowerInvariant(),
-            Password = passwordHashService.HashPassword(registerDto.Password),
+            Password = _passwordHashService.HashPassword(registerDto.Password),
             Status = false,
             UserProfile = new UserProfile
             {
@@ -126,21 +151,21 @@ public class AuthService(
         };
 
         // Guardar usuario y entidades relacionadas
-        var createdUser = await userRepository.CreateAsync(user);
+        var createdUser = await _userRepository.CreateAsync(user);
 
-        logger.LogUserRegistered(createdUser.Username);
+        _logger.LogUserRegistered(createdUser.Username);
 
         // Enviar email de verificación en background
         _ = Task.Run(async () =>
         {
             try
             {
-                await emailService.SendEmailVerificationAsync(createdUser.Email, createdUser.Username, emailVerificationToken);
-                logger.LogInformation("Verification email sent");
+                await _emailService.SendEmailVerificationAsync(createdUser.Email, createdUser.Username, emailVerificationToken);
+                _logger.LogInformation("Verification email sent");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to send verification email");
+                _logger.LogError(ex, "Failed to send verification email");
             }
         });
 
@@ -162,40 +187,55 @@ public class AuthService(
         if (loginDto.EmailOrUsername.Contains('@'))
         {
             // Es un email
-            user = await userRepository.GetByEmailAsync(loginDto.EmailOrUsername.ToLowerInvariant());
+            user = await _userRepository.GetByEmailAsync(loginDto.EmailOrUsername.ToLowerInvariant());
         }
         else
         {
             // Es un username
-            user = await userRepository.GetByUsernameAsync(loginDto.EmailOrUsername);
+            user = await _userRepository.GetByUsernameAsync(loginDto.EmailOrUsername);
         }
 
         // Verificar si el usuario existe
         if (user == null)
         {
-            logger.LogFailedLoginAttempt();
+            _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("Invalid credentials");
         }
 
         // Verificar si el usuario está activo
         if (!user.Status)
         {
-            logger.LogFailedLoginAttempt();
+            _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("User account is disabled");
         }
 
         // Verificar contraseña
-        if (!passwordHashService.VerifyPassword(loginDto.Password, user.Password))
+        if (!_passwordHashService.VerifyPassword(loginDto.Password, user.Password))
         {
-            logger.LogFailedLoginAttempt();
+            _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("Invalid credentials");
         }
 
-        logger.LogUserLoggedIn();
+        // Verificar si el usuario tiene 2FA habilitado
+        if (user.TwoFactorAuth?.IsEnabled == true)
+        {
+            _logger.LogInformation("User {Username} requires 2FA", user.Username);
+            
+            return new AuthResponseDto
+            {
+                Success = true,
+                Message = "Se requiere verificación de dos factores",
+                RequiresTwoFactor = true,
+                UserDetails = MapToUserDetailsDto(user),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+            };
+        }
+
+        _logger.LogUserLoggedIn();
 
         // Generar token JWT
-        var token = jwtTokenService.GenerateToken(user);
-        var expiryMinutes = int.Parse(configuration["JwtSettings:ExpiryInMinutes"] ?? "30");
+        var token = _jwtTokenService.GenerateToken(user);
+        var expiryMinutes = int.Parse(_configuration["JwtSettings:ExpiryInMinutes"] ?? "30");
 
         // Crear respuesta compacta
         return new AuthResponseDto
@@ -209,24 +249,24 @@ public class AuthService(
     }
 
     private UserResponseDto MapToUserResponseDto(User user)
+{
+    var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE;
+    return new UserResponseDto
     {
-        var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE;
-        return new UserResponseDto
-        {
-            Id = user.Id,
-            Name = user.Name,
-            Surname = user.Surname,
-            Username = user.Username,
-            Email = user.Email,
-            ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
-            Phone = user.UserProfile?.Phone ?? string.Empty,
-            Role = userRole,
-            Status = user.Status,
-            IsEmailVerified = user.UserEmail?.EmailVerified ?? false,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdatedAt
-        };
-    }
+        Id = user.Id,
+        Name = user.Name,
+        Surname = user.Surname,
+        Username = user.Username,
+        Email = user.Email,
+        ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
+        Phone = user.UserProfile?.Phone ?? string.Empty,
+        Role = userRole,
+        Status = user.Status,
+        IsEmailVerified = user.UserEmail?.EmailVerified ?? false,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt
+    };
+}
 
     private UserDetailsDto MapToUserDetailsDto(User user)
     {
@@ -241,7 +281,7 @@ public class AuthService(
 
     public async Task<EmailResponseDto> VerifyEmailAsync(VerifyEmailDto verifyEmailDto)
     {
-        var user = await userRepository.GetByEmailVerificationTokenAsync(verifyEmailDto.Token);
+        var user = await _userRepository.GetByEmailVerificationTokenAsync(verifyEmailDto.Token);
         if (user == null || user.UserEmail == null)
         {
             return new EmailResponseDto
@@ -256,19 +296,19 @@ public class AuthService(
         user.UserEmail.EmailVerificationToken = null;
         user.UserEmail.EmailVerificationTokenExpiry = null;
 
-        await userRepository.UpdateAsync(user);
+        await _userRepository.UpdateAsync(user);
 
         // Enviar email de bienvenida
         try
         {
-            await emailService.SendWelcomeEmailAsync(user.Email, user.Username);
+            await _emailService.SendWelcomeEmailAsync(user.Email, user.Username);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to send welcome email to {Email}", user.Email);
+            _logger.LogError(ex, "Failed to send welcome email to {Email}", user.Email);
         }
 
-        logger.LogInformation("Email verified successfully for user {Username}", user.Username);
+        _logger.LogInformation("Email verified successfully for user {Username}", user.Username);
 
         return new EmailResponseDto
         {
@@ -284,7 +324,7 @@ public class AuthService(
 
     public async Task<EmailResponseDto> ResendVerificationEmailAsync(ResendVerificationDto resendDto)
     {
-        var user = await userRepository.GetByEmailAsync(resendDto.Email);
+        var user = await _userRepository.GetByEmailAsync(resendDto.Email);
         if (user == null || user.UserEmail == null)
         {
             return new EmailResponseDto
@@ -310,12 +350,12 @@ public class AuthService(
         user.UserEmail.EmailVerificationToken = newToken;
         user.UserEmail.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
 
-        await userRepository.UpdateAsync(user);
+        await _userRepository.UpdateAsync(user);
 
         // Enviar email
         try
         {
-            await emailService.SendEmailVerificationAsync(user.Email, user.Username, newToken);
+            await _emailService.SendEmailVerificationAsync(user.Email, user.Username, newToken);
             return new EmailResponseDto
             {
                 Success = true,
@@ -325,7 +365,7 @@ public class AuthService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to resend verification email to {Email}", user.Email);
+            _logger.LogError(ex, "Failed to resend verification email to {Email}", user.Email);
             return new EmailResponseDto
             {
                 Success = false,
@@ -337,7 +377,7 @@ public class AuthService(
 
     public async Task<EmailResponseDto> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto)
     {
-        var user = await userRepository.GetByEmailAsync(forgotPasswordDto.Email);
+        var user = await _userRepository.GetByEmailAsync(forgotPasswordDto.Email);
         if (user == null)
         {
             // Por seguridad, siempre devolvemos éxito aunque el usuario no exista
@@ -367,17 +407,17 @@ public class AuthService(
             user.UserPasswordReset.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1); // 1 hora para resetear
         }
 
-        await userRepository.UpdateAsync(user);
+        await _userRepository.UpdateAsync(user);
 
         // Enviar email
         try
         {
-            await emailService.SendPasswordResetAsync(user.Email, user.Username, resetToken);
-            logger.LogInformation("Password reset email sent to {Email}", user.Email);
+            await _emailService.SendPasswordResetAsync(user.Email, user.Username, resetToken);
+            _logger.LogInformation("Password reset email sent to {Email}", user.Email);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
         }
 
         return new EmailResponseDto
@@ -390,7 +430,7 @@ public class AuthService(
 
     public async Task<EmailResponseDto> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
     {
-        var user = await userRepository.GetByPasswordResetTokenAsync(resetPasswordDto.Token);
+        var user = await _userRepository.GetByPasswordResetTokenAsync(resetPasswordDto.Token);
         if (user == null || user.UserPasswordReset == null)
         {
             return new EmailResponseDto
@@ -402,13 +442,13 @@ public class AuthService(
         }
 
         // Actualizar contraseña
-        user.Password = passwordHashService.HashPassword(resetPasswordDto.NewPassword);
+        user.Password = _passwordHashService.HashPassword(resetPasswordDto.NewPassword);
         user.UserPasswordReset.PasswordResetToken = null;
         user.UserPasswordReset.PasswordResetTokenExpiry = null;
 
-        await userRepository.UpdateAsync(user);
+        await _userRepository.UpdateAsync(user);
 
-        logger.LogInformation("Password reset successfully for user {Username}", user.Username);
+        _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
 
         return new EmailResponseDto
         {
@@ -420,7 +460,7 @@ public class AuthService(
 
     public async Task<UserResponseDto?> GetUserByIdAsync(string userId)
     {
-        var user = await userRepository.GetByIdAsync(userId);
+        var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
         {
             return null;
@@ -428,5 +468,47 @@ public class AuthService(
 
         return MapToUserResponseDto(user);
     }
-}
 
+    // ==================== MÉTODOS DE 2FA ====================
+
+    public async Task<TwoFactorSetupDto> SetupTwoFactorAsync(string userId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+            
+        return await _twoFactorService.GenerateSetupAsync(userId);
+    }
+
+    public async Task<bool> EnableTwoFactorAsync(string userId, string code)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+            
+        return await _twoFactorService.VerifyAndEnableAsync(userId, code);
+    }
+
+    public async Task<bool> DisableTwoFactorAsync(string userId, string code)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+            
+        return await _twoFactorService.DisableAsync(userId, code);
+    }
+
+    public async Task<bool> VerifyTwoFactorCodeAsync(string userId, string code)
+    {
+        return await _twoFactorService.VerifyCodeAsync(userId, code);
+    }
+
+    public async Task<List<string>> GenerateTwoFactorRecoveryCodesAsync(string userId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+            
+        return await _twoFactorService.GenerateRecoveryCodesAsync(userId);
+    }
+}
