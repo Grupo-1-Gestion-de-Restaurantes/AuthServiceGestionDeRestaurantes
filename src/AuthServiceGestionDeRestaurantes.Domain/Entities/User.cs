@@ -43,4 +43,6 @@ public class User
     public UserEmail UserEmail { get; set; } = null!;
     public UserPasswordReset UserPasswordReset { get; set; } = null!;
 
+    public virtual TwoFactorAuth? TwoFactorAuth { get; set; }
+    public bool TwoFactorEnabled => TwoFactorAuth?.IsEnabled ?? false;
 }

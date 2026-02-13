@@ -1,7 +1,9 @@
 using AuthServiceGestionDeRestaurantes.Domain.Entities;
+using AuthServiceGestionDeRestaurantes.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
+
 
 namespace AuthServiceGestionDeRestaurantes.Persistence.Data;
 
@@ -13,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserRole> UserRoles { get; set; }
     public DbSet<UserEmail> UserEmails { get; set; }
     public DbSet<UserPasswordReset> UserPasswordResets { get; set; }
+    public DbSet<TwoFactorAuth> TwoFactorAuths { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -163,6 +166,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasMaxLength(16);
             entity.Property(e => e.PasswordResetToken).HasMaxLength(256);
         });
+
+        modelBuilder.ApplyConfiguration(new TwoFactorAuthConfiguration());
     }
 
     public override int SaveChanges()
