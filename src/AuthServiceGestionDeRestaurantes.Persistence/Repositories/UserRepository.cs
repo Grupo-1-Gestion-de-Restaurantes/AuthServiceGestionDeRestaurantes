@@ -4,11 +4,21 @@ using AuthServiceGestionDeRestaurantes.Domain.Entities;
 using AuthServiceGestionDeRestaurantes.Domain.Interfaces;
 using AuthServiceGestionDeRestaurantes.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AuthServiceGestionDeRestaurantes.Persistence.Repositories;
 
-public class UserRepository(ApplicationDbContext context) : IUserRepository
+public class UserRepository : IUserRepository
 {
+    private readonly ApplicationDbContext context;
+    private readonly ILogger<UserRepository> _logger;
+
+    public UserRepository(ApplicationDbContext context, ILogger<UserRepository> logger)
+    {
+        this.context = context;
+        _logger = logger;
+    }
+
     public async Task<User> GetByIdAsync(string id)
     {
         var user = await context.Users
@@ -31,6 +41,7 @@ public class UserRepository(ApplicationDbContext context) : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .Include(u => u.TwoFactorAuth)
             .FirstOrDefaultAsync(u => EF.Functions.ILike(u.Email, email));
     }
 
@@ -42,6 +53,7 @@ public class UserRepository(ApplicationDbContext context) : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .Include(u => u.TwoFactorAuth)
             .FirstOrDefaultAsync(u => EF.Functions.ILike(u.Username, username));
     }
 
@@ -131,8 +143,7 @@ public class UserRepository(ApplicationDbContext context) : IUserRepository
         await context.SaveChangesAsync();
     }
 
-
-public async Task DeleteTwoFactorAuthAsync(string twoFactorAuthId)
+    public async Task DeleteTwoFactorAuthAsync(string twoFactorAuthId)
     {
         var twoFactorAuth = await context.TwoFactorAuths.FindAsync(twoFactorAuthId);
         if (twoFactorAuth != null)

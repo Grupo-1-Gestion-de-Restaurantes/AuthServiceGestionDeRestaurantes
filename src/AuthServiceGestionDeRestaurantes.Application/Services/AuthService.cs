@@ -48,24 +48,20 @@ public class AuthService : IAuthService
         _twoFactorService = twoFactorService;
     }
 
-
     public async Task<RegisterResponseDto> RegisterAsync(RegisterDto registerDto)
     {
-        // Verificar si el email ya existe
         if (await _userRepository.ExistsByEmailAsync(registerDto.Email))
         {
             _logger.LogRegistrationWithExistingEmail();
             throw new BusinessException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Email already exists");
         }
 
-        // Verificar si el username ya existe
         if (await _userRepository.ExistsByUsernameAsync(registerDto.Username))
         {
             _logger.LogRegistrationWithExistingUsername();
             throw new BusinessException(ErrorCodes.USERNAME_ALREADY_EXISTS, "Username already exists");
         }
 
-        // Validar y manejar la imagen de perfil
         string profilePicturePath;
 
         if (registerDto.ProfilePicture != null && registerDto.ProfilePicture.Size > 0)
@@ -93,7 +89,6 @@ public class AuthService : IAuthService
             profilePicturePath = _cloudinaryService.GetDefaultAvatarUrl();
         }
 
-        // Crear nuevo usuario y entidades relacionadas
         var emailVerificationToken = TokenGeneratorService.GenerateEmailVerificationToken();
 
         var userId = UuidGenerator.GenerateUserId();
@@ -101,11 +96,10 @@ public class AuthService : IAuthService
         var userEmailId = UuidGenerator.GenerateUserId();
         var userRoleId = UuidGenerator.GenerateUserId();
 
-        // Obtener el rol por defecto (USER_ROLE) ya seedado en DB
         var defaultRole = await _roleRepository.GetByNameAsync(RoleConstants.USER_ROLE);
         if (defaultRole == null)
         {
-            throw new InvalidOperationException($"Default role '{RoleConstants.USER_ROLE}' not found. Ensure seeding runs before registration.");
+            throw new InvalidOperationException($"Default role '{RoleConstants.USER_ROLE}' not found.");
         }
 
         var user = new User
@@ -141,7 +135,7 @@ public class AuthService : IAuthService
                     RoleId = defaultRole.Id
                 }
             ],
-            UserPasswordReset = new UserPasswordReset //Generar el objeto.
+            UserPasswordReset = new UserPasswordReset
             {
                 Id = UuidGenerator.GenerateUserId(),
                 UserId = userId,
@@ -150,12 +144,9 @@ public class AuthService : IAuthService
             },
         };
 
-        // Guardar usuario y entidades relacionadas
         var createdUser = await _userRepository.CreateAsync(user);
-
         _logger.LogUserRegistered(createdUser.Username);
 
-        // Enviar email de verificación en background
         _ = Task.Run(async () =>
         {
             try
@@ -169,7 +160,6 @@ public class AuthService : IAuthService
             }
         });
 
-        // Crear respuesta sin JWT - solo confirmación de registro
         return new RegisterResponseDto
         {
             Success = true,
@@ -181,46 +171,37 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto> LoginAsync(LoginDto loginDto)
     {
-        // Buscar usuario por email o username
         User? user = null;
 
         if (loginDto.EmailOrUsername.Contains('@'))
         {
-            // Es un email
             user = await _userRepository.GetByEmailAsync(loginDto.EmailOrUsername.ToLowerInvariant());
         }
         else
         {
-            // Es un username
             user = await _userRepository.GetByUsernameAsync(loginDto.EmailOrUsername);
         }
 
-        // Verificar si el usuario existe
         if (user == null)
         {
             _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("Invalid credentials");
         }
 
-        // Verificar si el usuario está activo
         if (!user.Status)
         {
             _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("User account is disabled");
         }
 
-        // Verificar contraseña
         if (!_passwordHashService.VerifyPassword(loginDto.Password, user.Password))
         {
             _logger.LogFailedLoginAttempt();
             throw new UnauthorizedAccessException("Invalid credentials");
         }
 
-        // Verificar si el usuario tiene 2FA habilitado
         if (user.TwoFactorAuth?.IsEnabled == true)
         {
-            _logger.LogInformation("User {Username} requires 2FA", user.Username);
-            
             return new AuthResponseDto
             {
                 Success = true,
@@ -233,11 +214,9 @@ public class AuthService : IAuthService
 
         _logger.LogUserLoggedIn();
 
-        // Generar token JWT
         var token = _jwtTokenService.GenerateToken(user);
         var expiryMinutes = int.Parse(_configuration["JwtSettings:ExpiryInMinutes"] ?? "30");
 
-        // Crear respuesta compacta
         return new AuthResponseDto
         {
             Success = true,
@@ -300,7 +279,6 @@ public class AuthService : IAuthService
 
         await _userRepository.UpdateAsync(user);
 
-        // Enviar email de bienvenida
         try
         {
             await _emailService.SendWelcomeEmailAsync(user.Email, user.Username);
@@ -347,14 +325,12 @@ public class AuthService : IAuthService
             };
         }
 
-        // Generar nuevo token
         var newToken = TokenGeneratorService.GenerateEmailVerificationToken();
         user.UserEmail.EmailVerificationToken = newToken;
         user.UserEmail.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
 
         await _userRepository.UpdateAsync(user);
 
-        // Enviar email
         try
         {
             await _emailService.SendEmailVerificationAsync(user.Email, user.Username, newToken);
@@ -382,7 +358,6 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByEmailAsync(forgotPasswordDto.Email);
         if (user == null)
         {
-            // Por seguridad, siempre devolvemos éxito aunque el usuario no exista
             return new EmailResponseDto
             {
                 Success = true,
@@ -391,7 +366,6 @@ public class AuthService : IAuthService
             };
         }
 
-        // Generar token de reset
         var resetToken = TokenGeneratorService.GeneratePasswordResetToken();
 
         if (user.UserPasswordReset == null)
@@ -406,12 +380,11 @@ public class AuthService : IAuthService
         else
         {
             user.UserPasswordReset.PasswordResetToken = resetToken;
-            user.UserPasswordReset.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1); // 1 hora para resetear
+            user.UserPasswordReset.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
         }
 
         await _userRepository.UpdateAsync(user);
 
-        // Enviar email
         try
         {
             await _emailService.SendPasswordResetAsync(user.Email, user.Username, resetToken);
@@ -443,7 +416,6 @@ public class AuthService : IAuthService
             };
         }
 
-        // Actualizar contraseña
         user.Password = _passwordHashService.HashPassword(resetPasswordDto.NewPassword);
         user.UserPasswordReset.PasswordResetToken = null;
         user.UserPasswordReset.PasswordResetTokenExpiry = null;
@@ -515,12 +487,11 @@ public class AuthService : IAuthService
     }
 
     public async Task<string> GenerateTokenForUserAsync(string userId)
-{
-    var user = await _userRepository.GetByIdAsync(userId);
-    if (user == null)
-        throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-        
-    return _jwtTokenService.GenerateToken(user);
-}
-
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+            
+        return _jwtTokenService.GenerateToken(user);
+    }
 }
