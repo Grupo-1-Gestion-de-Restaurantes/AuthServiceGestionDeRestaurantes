@@ -2,9 +2,11 @@ using System;
 using AuthServiceGestionDeRestaurantes.Application.DTOs;
 using AuthServiceGestionDeRestaurantes.Application.DTOs.Email;
 using AuthServiceGestionDeRestaurantes.Application.Interfaces;
+using AuthServiceGestionDeRestaurantes.Application.DTOs.TwoFactor;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+
 
 namespace AuthServiceGestionDeRestaurantes.Api.Controllers;
 
@@ -108,4 +110,45 @@ public class AuthController(IAuthService authService) : ControllerBase
         var result = await authService.ResetPasswordAsync(resetPasswordDto);
         return Ok(result);
     }
+
+    [HttpPost("verify-2fa")]
+    [EnableRateLimiting("AuthPolicy")]
+    public async Task<ActionResult<AuthResponseDto>> VerifyTwoFactor([FromBody] VerifyTwoFactorDto dto)
+    {
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+        
+        if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
+        {
+            return Unauthorized(new { success = false, message = "Usuario no autenticado" });
+        }
+
+        var isValid = await authService.VerifyTwoFactorCodeAsync(userIdClaim.Value, dto.Code);
+        
+        if (!isValid)
+        {
+            return Unauthorized(new { success = false, message = "Código 2FA inválido" });
+        }
+
+        var user = await authService.GetUserByIdAsync(userIdClaim.Value);
+        var token = await authService.GenerateTokenForUserAsync(userIdClaim.Value);
+
+        return Ok(new AuthResponseDto
+        {
+            Success = true,
+            Message = "Login exitoso",
+            Token = token,
+            UserDetails = new UserDetailsDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                ProfilePicture = user.ProfilePicture,
+                Role = user.Role,
+                TwoFactorEnabled = true
+            },
+            ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+            RequiresTwoFactor = false
+        });
+    }
+
+
 }

@@ -7,6 +7,7 @@ using Serilog;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Npgsql;
+using Microsoft.EntityFrameworkCore;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,9 +35,6 @@ builder.Services.AddRateLimitingPolicies();
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
-
-builder.Services.AddNpgsqlDataSource(builder.Configuration.GetConnectionString("DefaultConnection")!,
-    dataSourceBuilder => dataSourceBuilder.EnableDynamicJson());
 
 var app = builder.Build();
 

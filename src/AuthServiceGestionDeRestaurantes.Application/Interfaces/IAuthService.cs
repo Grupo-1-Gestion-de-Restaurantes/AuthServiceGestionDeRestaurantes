@@ -20,4 +20,5 @@ public interface IAuthService
     Task<bool> DisableTwoFactorAsync(string userId, string code);
     Task<bool> VerifyTwoFactorCodeAsync(string userId, string code);
     Task<List<string>> GenerateTwoFactorRecoveryCodesAsync(string userId);
+    Task<string> GenerateTokenForUserAsync(string userId);
 }

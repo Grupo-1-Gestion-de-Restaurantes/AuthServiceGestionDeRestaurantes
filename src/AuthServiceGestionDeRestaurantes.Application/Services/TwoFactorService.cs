@@ -21,55 +21,56 @@ public class TwoFactorService : ITwoFactorService
     }
 
     public async Task<TwoFactorSetupDto> GenerateSetupAsync(string userId)
+{
+    var user = await _userRepository.GetByIdAsync(userId);
+    
+    // Generar clave secreta
+    var secretKey = Base32Encoding.ToString(KeyGeneration.GenerateRandomKey(20));
+    
+    // Generar URI para Google Authenticator
+    var issuer = "GestionRestaurantes";
+    var account = $"{user.Email}";
+    var uri = new OtpUri(OtpType.Totp, secretKey, account, issuer);
+    
+    // Generar QR Code
+    using var qrGenerator = new QRCodeGenerator();
+    using var qrCodeData = qrGenerator.CreateQrCode(uri.ToString(), QRCodeGenerator.ECCLevel.Q);
+    using var qrCode = new PngByteQRCode(qrCodeData);
+    var qrCodeBytes = qrCode.GetGraphic(20);
+    var qrCodeBase64 = Convert.ToBase64String(qrCodeBytes);
+    
+    // Generar códigos de recuperación
+    var recoveryCodes = GenerateRecoveryCodes(8);
+    
+    // 🔥 CORRECCIÓN: SIEMPRE CREAR NUEVO (no actualizar)
+    if (user.TwoFactorAuth != null)
     {
-        var user = await _userRepository.GetByIdAsync(userId);
-        
-        var secretKey = Base32Encoding.ToString(KeyGeneration.GenerateRandomKey(20));
-        
-        var issuer = "GestionRestaurantes";
-        var account = $"{user.Email}";
-        var uri = new OtpUri(OtpType.Totp, secretKey, account, issuer);
-        
-        using var qrGenerator = new QRCodeGenerator();
-        using var qrCodeData = qrGenerator.CreateQrCode(uri.ToString(), QRCodeGenerator.ECCLevel.Q);
-        using var qrCode = new PngByteQRCode(qrCodeData);
-        var qrCodeBytes = qrCode.GetGraphic(20);
-        var qrCodeBase64 = Convert.ToBase64String(qrCodeBytes);
-        
-        var recoveryCodes = GenerateRecoveryCodes(8);
-        
-        if (user.TwoFactorAuth == null)
-        {
-            user.TwoFactorAuth = new TwoFactorAuth
-            {
-                Id = UuidGenerator.GenerateUserId(),
-                UserId = userId,
-                SecretKey = secretKey,
-                IsEnabled = false,
-                RecoveryCodes = recoveryCodes,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-        }
-        else
-        {
-            user.TwoFactorAuth.SecretKey = secretKey;
-            user.TwoFactorAuth.RecoveryCodes = recoveryCodes;
-            user.TwoFactorAuth.IsEnabled = false;
-            user.TwoFactorAuth.EnabledAt = null;
-            user.TwoFactorAuth.UpdatedAt = DateTime.UtcNow;
-        }
-        
-        await _userRepository.UpdateAsync(user);
-        
-        return new TwoFactorSetupDto
-        {
-            SecretKey = secretKey,
-            QrCodeImage = $"data:image/png;base64,{qrCodeBase64}",
-            ManualEntryKey = secretKey,
-            RecoveryCodes = recoveryCodes
-        };
+        // Si ya existe, lo eliminamos para evitar conflictos
+        user.TwoFactorAuth = null;
     }
+    
+    // Crear NUEVO registro
+    user.TwoFactorAuth = new TwoFactorAuth
+    {
+        Id = UuidGenerator.GenerateUserId(),
+        UserId = userId,
+        SecretKey = secretKey,
+        IsEnabled = false,
+        RecoveryCodes = recoveryCodes,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    
+    await _userRepository.UpdateAsync(user);
+    
+    return new TwoFactorSetupDto
+    {
+        SecretKey = secretKey,
+        QrCodeImage = $"data:image/png;base64,{qrCodeBase64}",
+        ManualEntryKey = secretKey,
+        RecoveryCodes = recoveryCodes
+    };
+}
 
     public async Task<bool> VerifyAndEnableAsync(string userId, string code)
     {

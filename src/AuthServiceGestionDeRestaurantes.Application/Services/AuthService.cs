@@ -249,24 +249,25 @@ public class AuthService : IAuthService
     }
 
     private UserResponseDto MapToUserResponseDto(User user)
-{
-    var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE;
-    return new UserResponseDto
     {
-        Id = user.Id,
-        Name = user.Name,
-        Surname = user.Surname,
-        Username = user.Username,
-        Email = user.Email,
-        ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
-        Phone = user.UserProfile?.Phone ?? string.Empty,
-        Role = userRole,
-        Status = user.Status,
-        IsEmailVerified = user.UserEmail?.EmailVerified ?? false,
-        CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdatedAt
-    };
-}
+        var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE;
+        return new UserResponseDto
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Surname = user.Surname,
+            Username = user.Username,
+            Email = user.Email,
+            ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
+            Phone = user.UserProfile?.Phone ?? string.Empty,
+            Role = userRole,
+            Status = user.Status,
+            IsEmailVerified = user.UserEmail?.EmailVerified ?? false,
+            CreatedAt = user.CreatedAt,
+            UpdatedAt = user.UpdatedAt,
+            TwoFactorEnabled = user.TwoFactorAuth?.IsEnabled ?? false
+        };
+    }
 
     private UserDetailsDto MapToUserDetailsDto(User user)
     {
@@ -275,7 +276,8 @@ public class AuthService : IAuthService
             Id = user.Id,
             Username = user.Username,
             ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
-            Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE
+            Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE,
+            TwoFactorEnabled = user.TwoFactorAuth?.IsEnabled ?? false
         };
     }
 
@@ -511,4 +513,14 @@ public class AuthService : IAuthService
             
         return await _twoFactorService.GenerateRecoveryCodesAsync(userId);
     }
+
+    public async Task<string> GenerateTokenForUserAsync(string userId)
+{
+    var user = await _userRepository.GetByIdAsync(userId);
+    if (user == null)
+        throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+        
+    return _jwtTokenService.GenerateToken(user);
+}
+
 }

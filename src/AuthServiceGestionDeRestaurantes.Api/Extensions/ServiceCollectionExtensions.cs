@@ -4,6 +4,7 @@ using AuthServiceGestionDeRestaurantes.Domain.Interfaces;
 using AuthServiceGestionDeRestaurantes.Persistence.Data;
 using AuthServiceGestionDeRestaurantes.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuthServiceGestionDeRestaurantes.Api.Extensions;
 
@@ -11,8 +12,12 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(configuration.GetConnectionString("DefaultConnection"));
+        dataSourceBuilder.EnableDynamicJson();
+        var dataSource = dataSourceBuilder.Build();
+
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+            options.UseNpgsql(dataSource)
                 .UseSnakeCaseNamingConvention());
         
         services.AddScoped<IUserRepository, UserRepository>();
