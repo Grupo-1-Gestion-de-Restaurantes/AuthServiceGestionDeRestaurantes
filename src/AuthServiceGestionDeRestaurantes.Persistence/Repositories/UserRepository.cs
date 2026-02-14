@@ -17,8 +17,10 @@ public class UserRepository(ApplicationDbContext context) : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .Include(u => u.TwoFactorAuth)  
             .FirstOrDefaultAsync(u => u.Id == id);
-            return user ?? throw new InvalidOperationException($"User with id {id} not found.");
+            
+        return user ?? throw new InvalidOperationException($"User with id {id} not found.");
     }
 
     public async Task<User?> GetByEmailAsync(string email)
@@ -121,5 +123,22 @@ public class UserRepository(ApplicationDbContext context) : IUserRepository
 
         context.UserRoles.Add(newUserRole);
         await context.SaveChangesAsync();
+    }
+
+    public async Task AddTwoFactorAuthAsync(TwoFactorAuth twoFactorAuth)
+    {
+        await context.TwoFactorAuths.AddAsync(twoFactorAuth);
+        await context.SaveChangesAsync();
+    }
+
+
+public async Task DeleteTwoFactorAuthAsync(string twoFactorAuthId)
+    {
+        var twoFactorAuth = await context.TwoFactorAuths.FindAsync(twoFactorAuthId);
+        if (twoFactorAuth != null)
+        {
+            context.TwoFactorAuths.Remove(twoFactorAuth);
+            await context.SaveChangesAsync();
+        }
     }
 }

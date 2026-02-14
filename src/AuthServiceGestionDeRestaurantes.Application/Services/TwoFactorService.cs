@@ -20,37 +20,46 @@ public class TwoFactorService : ITwoFactorService
         _logger = logger;
     }
 
-    public async Task<TwoFactorSetupDto> GenerateSetupAsync(string userId)
+public async Task<TwoFactorSetupDto> GenerateSetupAsync(string userId)
 {
+    _logger.LogInformation("Iniciando GenerateSetupAsync para usuario {UserId}", userId);
+    
     var user = await _userRepository.GetByIdAsync(userId);
+    _logger.LogInformation("Usuario obtenido: {Email}, TwoFactorAuth existe: {Exists}", 
+        user.Email, user.TwoFactorAuth != null);
     
-    // Generar clave secreta
+    if (user.TwoFactorAuth != null)
+    {
+        _logger.LogInformation("Eliminando TwoFactorAuth existente con ID: {Id}", user.TwoFactorAuth.Id);
+        await _userRepository.DeleteTwoFactorAuthAsync(user.TwoFactorAuth.Id);
+        _logger.LogInformation("TwoFactorAuth eliminado de la BD");
+        
+        user = await _userRepository.GetByIdAsync(userId);
+        _logger.LogInformation("Usuario recargado, TwoFactorAuth ahora es null: {IsNull}", user.TwoFactorAuth == null);
+    }
+    else
+    {
+        _logger.LogInformation("No existía TwoFactorAuth previo para el usuario");
+    }
+    
     var secretKey = Base32Encoding.ToString(KeyGeneration.GenerateRandomKey(20));
+    _logger.LogDebug("SecretKey generada");
     
-    // Generar URI para Google Authenticator
     var issuer = "GestionRestaurantes";
     var account = $"{user.Email}";
     var uri = new OtpUri(OtpType.Totp, secretKey, account, issuer);
     
-    // Generar QR Code
     using var qrGenerator = new QRCodeGenerator();
     using var qrCodeData = qrGenerator.CreateQrCode(uri.ToString(), QRCodeGenerator.ECCLevel.Q);
     using var qrCode = new PngByteQRCode(qrCodeData);
     var qrCodeBytes = qrCode.GetGraphic(20);
     var qrCodeBase64 = Convert.ToBase64String(qrCodeBytes);
+    _logger.LogDebug("QR Code generado");
     
-    // Generar códigos de recuperación
     var recoveryCodes = GenerateRecoveryCodes(8);
+    _logger.LogDebug("{Count} códigos de recuperación generados", recoveryCodes.Count);
     
-    // 🔥 CORRECCIÓN: SIEMPRE CREAR NUEVO (no actualizar)
-    if (user.TwoFactorAuth != null)
-    {
-        // Si ya existe, lo eliminamos para evitar conflictos
-        user.TwoFactorAuth = null;
-    }
-    
-    // Crear NUEVO registro
-    user.TwoFactorAuth = new TwoFactorAuth
+    var twoFactorAuth = new TwoFactorAuth
     {
         Id = UuidGenerator.GenerateUserId(),
         UserId = userId,
@@ -61,7 +70,10 @@ public class TwoFactorService : ITwoFactorService
         UpdatedAt = DateTime.UtcNow
     };
     
-    await _userRepository.UpdateAsync(user);
+    // 🔥 NUEVO: Guardar directamente, sin tocar user.TwoFactorAuth
+    _logger.LogInformation("Guardando TwoFactorAuth directamente en la base de datos");
+    await _userRepository.AddTwoFactorAuthAsync(twoFactorAuth);
+    _logger.LogInformation("TwoFactorAuth guardado correctamente con ID: {Id}", twoFactorAuth.Id);
     
     return new TwoFactorSetupDto
     {
