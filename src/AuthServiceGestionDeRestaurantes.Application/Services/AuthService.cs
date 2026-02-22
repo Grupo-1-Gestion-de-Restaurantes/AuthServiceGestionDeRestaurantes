@@ -48,6 +48,11 @@ public class AuthService : IAuthService
         _twoFactorService = twoFactorService;
     }
 
+    public async Task<bool> HardDeleteForRollBackAsync(string userId)
+    {
+        return await _userRepository.HardDeleteForRollBackAsync(userId);
+    }
+
 
     public async Task<RegisterResponseDto> RegisterEmployeeAsync(RegisterDto registerDto)
     {
@@ -97,7 +102,8 @@ public class AuthService : IAuthService
         var userRoleId = UuidGenerator.GenerateUserId();
 
         var role = await _roleRepository.GetByNameAsync(RoleConstants.EMPLOYEE_ROLE);
-        if (role == null)        {
+        if (role == null)
+        {
             throw new InvalidOperationException($"Role '{RoleConstants.EMPLOYEE_ROLE}' not found.");
         }
 

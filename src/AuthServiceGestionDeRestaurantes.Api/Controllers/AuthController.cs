@@ -177,9 +177,39 @@ public class AuthController(IAuthService authService) : ControllerBase
             return Forbid();
         }
 
-
         var result = await authService.RegisterEmployeeAsync(dto);
         return Ok(result);
+    }
+
+    [HttpDelete("rollbackUser/{id}")]
+    [Authorize]
+    public async Task<IActionResult> HardDeleteForRollBack(string id)
+    {
+
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+        if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
+        {
+            return Unauthorized();
+        }
+
+        var user = await authService.GetUserByIdAsync(userIdClaim.Value);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        // Validar que tenga rol de MANAGER_ROLE o ADMIN_ROLE
+        if (user.Role != RoleConstants.MANAGER_ROLE && user.Role != RoleConstants.ADMIN_ROLE)
+        {
+            return Forbid();
+        }
+
+        var success = await authService.HardDeleteForRollBackAsync(id);
+        if (!success)
+        {
+            return NotFound(new { success = false, message = "Usuario no encontrado o no se pudo eliminar" });
+        }
+        return Ok(new { success = true, message = "Usuario eliminado correctamente." });
     }
 
 }

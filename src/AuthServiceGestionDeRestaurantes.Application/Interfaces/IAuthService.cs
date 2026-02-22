@@ -22,4 +22,5 @@ public interface IAuthService
     Task<bool> VerifyTwoFactorCodeAsync(string userId, string code);
     Task<List<string>> GenerateTwoFactorRecoveryCodesAsync(string userId);
     Task<string> GenerateTokenForUserAsync(string userId);
+    Task<bool> HardDeleteForRollBackAsync(string userId);
 }
