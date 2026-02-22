@@ -21,7 +21,7 @@ public static class DataSeeder
                 new()
                 {
                     Id = UuidGenerator.GenerateRoleId(),
-                        Name = RoleConstants.USER_ROLE
+                        Name = RoleConstants.CLIENT_ROLE
                 }
             };
 

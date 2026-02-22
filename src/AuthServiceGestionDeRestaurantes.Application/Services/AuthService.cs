@@ -96,10 +96,10 @@ public class AuthService : IAuthService
         var userEmailId = UuidGenerator.GenerateUserId();
         var userRoleId = UuidGenerator.GenerateUserId();
 
-        var defaultRole = await _roleRepository.GetByNameAsync(RoleConstants.USER_ROLE);
+        var defaultRole = await _roleRepository.GetByNameAsync(RoleConstants.CLIENT_ROLE);
         if (defaultRole == null)
         {
-            throw new InvalidOperationException($"Default role '{RoleConstants.USER_ROLE}' not found.");
+            throw new InvalidOperationException($"Default role '{RoleConstants.CLIENT_ROLE}' not found.");
         }
 
         var user = new User
@@ -229,7 +229,7 @@ public class AuthService : IAuthService
 
     private UserResponseDto MapToUserResponseDto(User user)
     {
-        var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE;
+        var userRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.CLIENT_ROLE;
         return new UserResponseDto
         {
             Id = user.Id,
@@ -255,7 +255,7 @@ public class AuthService : IAuthService
             Id = user.Id,
             Username = user.Username,
             ProfilePicture = _cloudinaryService.GetFullImageUrl(user.UserProfile?.ProfilePicture ?? string.Empty),
-            Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.USER_ROLE,
+            Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? RoleConstants.CLIENT_ROLE,
             TwoFactorEnabled = user.TwoFactorAuth?.IsEnabled ?? false
         };
     }
