@@ -8,6 +8,7 @@ namespace AuthServiceGestionDeRestaurantes.Application.Interfaces;
 public interface IAuthService
 {
     Task<RegisterResponseDto> RegisterAsync(RegisterDto registerDto);
+    Task<RegisterResponseDto> RegisterEmployeeAsync(RegisterDto registerDto);
     Task<AuthResponseDto> LoginAsync(LoginDto loginDto);
     Task<EmailResponseDto> VerifyEmailAsync(VerifyEmailDto verifyEmailDto);
     Task<EmailResponseDto> ResendVerificationEmailAsync(ResendVerificationDto resendDto);
@@ -21,4 +22,5 @@ public interface IAuthService
     Task<bool> VerifyTwoFactorCodeAsync(string userId, string code);
     Task<List<string>> GenerateTwoFactorRecoveryCodesAsync(string userId);
     Task<string> GenerateTokenForUserAsync(string userId);
+    Task<bool> HardDeleteForRollBackAsync(string userId);
 }

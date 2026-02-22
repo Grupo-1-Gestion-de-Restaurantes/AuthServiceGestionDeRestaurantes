@@ -21,8 +21,18 @@ public static class DataSeeder
                 new()
                 {
                     Id = UuidGenerator.GenerateRoleId(),
-                        Name = RoleConstants.USER_ROLE
-                }
+                        Name = RoleConstants.CLIENT_ROLE
+                },
+                new()
+                {
+                    Id = UuidGenerator.GenerateRoleId(),
+                        Name = RoleConstants.MANAGER_ROLE
+                },
+                new()
+                {
+                    Id = UuidGenerator.GenerateRoleId(),
+                        Name = RoleConstants.EMPLOYEE_ROLE
+                },
             };
 
             await context.Roles.AddRangeAsync(roles);
