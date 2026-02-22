@@ -3,6 +3,7 @@ using AuthServiceGestionDeRestaurantes.Application.DTOs;
 using AuthServiceGestionDeRestaurantes.Application.DTOs.Email;
 using AuthServiceGestionDeRestaurantes.Application.Interfaces;
 using AuthServiceGestionDeRestaurantes.Application.DTOs.TwoFactor;
+using AuthServiceGestionDeRestaurantes.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -116,14 +117,14 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<ActionResult<AuthResponseDto>> VerifyTwoFactor([FromBody] VerifyTwoFactorDto dto)
     {
         var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-        
+
         if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
         {
             return Unauthorized(new { success = false, message = "Usuario no autenticado" });
         }
 
         var isValid = await authService.VerifyTwoFactorCodeAsync(userIdClaim.Value, dto.Code);
-        
+
         if (!isValid)
         {
             return Unauthorized(new { success = false, message = "Código 2FA inválido" });
@@ -150,5 +151,35 @@ public class AuthController(IAuthService authService) : ControllerBase
         });
     }
 
+    // Enpoint para registrar un nuevo empleado. Requiere rol de MANAGER_ROLE o ADMIN_ROLE
+    [HttpPost("register-employee")]
+    [Authorize]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10MB límite
+    [EnableRateLimiting("AuthPolicy")]
+    public async Task<ActionResult<UserResponseDto>> RegisterEmployee([FromForm] RegisterDto dto)
+    {
+
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+        if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
+        {
+            return Unauthorized();
+        }
+
+        var user = await authService.GetUserByIdAsync(userIdClaim.Value);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        // Validar que tenga rol de MANAGER_ROLE o ADMIN_ROLE
+        if (user.Role != RoleConstants.MANAGER_ROLE && user.Role != RoleConstants.ADMIN_ROLE)
+        {
+            return Forbid();
+        }
+
+
+        var result = await authService.RegisterEmployeeAsync(dto);
+        return Ok(result);
+    }
 
 }

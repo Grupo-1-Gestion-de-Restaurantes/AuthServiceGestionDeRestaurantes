@@ -48,6 +48,113 @@ public class AuthService : IAuthService
         _twoFactorService = twoFactorService;
     }
 
+
+    public async Task<RegisterResponseDto> RegisterEmployeeAsync(RegisterDto registerDto)
+    {
+        if (await _userRepository.ExistsByEmailAsync(registerDto.Email))
+        {
+            _logger.LogRegistrationWithExistingEmail();
+            throw new BusinessException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Email already exists");
+        }
+
+        if (await _userRepository.ExistsByUsernameAsync(registerDto.Username))
+        {
+            _logger.LogRegistrationWithExistingUsername();
+            throw new BusinessException(ErrorCodes.USERNAME_ALREADY_EXISTS, "Username already exists");
+        }
+
+        string profilePicturePath;
+
+        if (registerDto.ProfilePicture != null && registerDto.ProfilePicture.Size > 0)
+        {
+            var (isValid, errorMessage) = FileValidator.ValidateImage(registerDto.ProfilePicture);
+            if (!isValid)
+            {
+                _logger.LogWarning($"File validation failed: {errorMessage}");
+                throw new BusinessException(ErrorCodes.INVALID_FILE_FORMAT, errorMessage!);
+            }
+
+            try
+            {
+                var fileName = FileValidator.GenerateSecureFileName(registerDto.ProfilePicture.FileName);
+                profilePicturePath = await _cloudinaryService.UploadImageAsync(registerDto.ProfilePicture, fileName);
+            }
+            catch (Exception)
+            {
+                _logger.LogImageUploadError();
+                throw new BusinessException(ErrorCodes.IMAGE_UPLOAD_FAILED, "Failed to upload profile image");
+            }
+        }
+        else
+        {
+            profilePicturePath = _cloudinaryService.GetDefaultAvatarUrl();
+        }
+
+
+        var userId = UuidGenerator.GenerateUserId();
+        var userProfileId = UuidGenerator.GenerateUserId();
+        var userEmailId = UuidGenerator.GenerateUserId();
+        var userRoleId = UuidGenerator.GenerateUserId();
+
+        var role = await _roleRepository.GetByNameAsync(RoleConstants.EMPLOYEE_ROLE);
+        if (role == null)        {
+            throw new InvalidOperationException($"Role '{RoleConstants.EMPLOYEE_ROLE}' not found.");
+        }
+
+        var user = new User
+        {
+            Id = userId,
+            Name = registerDto.Name,
+            Surname = registerDto.Surname,
+            Username = registerDto.Username,
+            Email = registerDto.Email.ToLowerInvariant(),
+            Password = _passwordHashService.HashPassword(registerDto.Password),
+            Status = true,
+            UserProfile = new UserProfile
+            {
+                Id = userProfileId,
+                UserId = userId,
+                ProfilePicture = profilePicturePath,
+                Phone = registerDto.Phone
+            },
+            UserEmail = new UserEmail
+            {
+                Id = userEmailId,
+                UserId = userId,
+                EmailVerified = true,
+                EmailVerificationToken = null,
+                EmailVerificationTokenExpiry = null
+            },
+            UserRoles =
+            [
+                new Domain.Entities.UserRole
+                {
+                    Id = userRoleId,
+                    UserId = userId,
+                    RoleId = role.Id
+                }
+            ],
+            UserPasswordReset = new UserPasswordReset
+            {
+                Id = UuidGenerator.GenerateUserId(),
+                UserId = userId,
+                PasswordResetToken = null,
+                PasswordResetTokenExpiry = null
+            },
+        };
+
+        var createdUser = await _userRepository.CreateAsync(user);
+        _logger.LogUserRegistered(createdUser.Username);
+
+        return new RegisterResponseDto
+        {
+            Success = true,
+            User = MapToUserResponseDto(createdUser),
+            Message = "Empleado registrado exitosamente.",
+            EmailVerificationRequired = false
+        };
+    }
+
     public async Task<RegisterResponseDto> RegisterAsync(RegisterDto registerDto)
     {
         if (await _userRepository.ExistsByEmailAsync(registerDto.Email))
@@ -450,7 +557,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-            
+
         return await _twoFactorService.GenerateSetupAsync(userId);
     }
 
@@ -459,7 +566,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-            
+
         return await _twoFactorService.VerifyAndEnableAsync(userId, code);
     }
 
@@ -468,7 +575,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-            
+
         return await _twoFactorService.DisableAsync(userId, code);
     }
 
@@ -482,7 +589,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-            
+
         return await _twoFactorService.GenerateRecoveryCodesAsync(userId);
     }
 
@@ -491,7 +598,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
-            
+
         return _jwtTokenService.GenerateToken(user);
     }
 }
