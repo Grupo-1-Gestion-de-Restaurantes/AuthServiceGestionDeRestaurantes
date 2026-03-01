@@ -54,7 +54,7 @@ public class AuthService : IAuthService
     }
 
 
-    public async Task<RegisterResponseDto> RegisterEmployeeAsync(RegisterDto registerDto)
+    public async Task<RegisterResponseDto> RegisterEmployeeAsync(RegisterEmployeeDto registerDto)
     {
         if (await _userRepository.ExistsByEmailAsync(registerDto.Email))
         {
@@ -101,10 +101,10 @@ public class AuthService : IAuthService
         var userEmailId = UuidGenerator.GenerateUserId();
         var userRoleId = UuidGenerator.GenerateUserId();
 
-        var role = await _roleRepository.GetByNameAsync(RoleConstants.EMPLOYEE_ROLE);
+        var role = await _roleRepository.GetByNameAsync(registerDto.Role);
         if (role == null)
         {
-            throw new InvalidOperationException($"Role '{RoleConstants.EMPLOYEE_ROLE}' not found.");
+            throw new InvalidOperationException($"Role '{registerDto.Role}' not found.");
         }
 
         var user = new User
