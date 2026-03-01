@@ -131,6 +131,10 @@ public class AuthController(IAuthService authService) : ControllerBase
         }
 
         var user = await authService.GetUserByIdAsync(userIdClaim.Value);
+        if (user == null)
+        {
+            return NotFound(new { success = false, message = "Usuario no encontrado" });
+        }
         var token = await authService.GenerateTokenForUserAsync(userIdClaim.Value);
 
         return Ok(new AuthResponseDto
@@ -156,7 +160,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     [Authorize]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB límite
     [EnableRateLimiting("AuthPolicy")]
-    public async Task<ActionResult<UserResponseDto>> RegisterEmployee([FromForm] RegisterDto dto)
+    public async Task<ActionResult<UserResponseDto>> RegisterEmployee([FromForm] RegisterEmployeeDto dto)
     {
 
         var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
@@ -171,10 +175,20 @@ public class AuthController(IAuthService authService) : ControllerBase
             return NotFound();
         }
 
-        // Validar que tenga rol de MANAGER_ROLE o ADMIN_ROLE
+        // Validar que el usuario tenga rol de MANAGER_ROLE o ADMIN_ROLE
         if (user.Role != RoleConstants.MANAGER_ROLE && user.Role != RoleConstants.ADMIN_ROLE)
         {
             return Forbid();
+        }
+
+        //validar que el rol a asignar sea EMPLOYEE_ROLE o MANAGER_ROLE (pero solo ADMIN_ROLE puede asignar MANAGER_ROLE)
+        if (dto.Role != RoleConstants.EMPLOYEE_ROLE && dto.Role != RoleConstants.MANAGER_ROLE)
+        {
+            return BadRequest(new { success = false, message = "Rol inválido. Solo se permiten EMPLOYEE_ROLE o MANAGER_ROLE" });
+        }
+        if (dto.Role == RoleConstants.MANAGER_ROLE && user.Role != RoleConstants.ADMIN_ROLE)
+        {
+            return Unauthorized(new { success = false, message = "Solo usuarios con rol ADMIN_ROLE pueden asignar el rol MANAGER_ROLE" });
         }
 
         var result = await authService.RegisterEmployeeAsync(dto);
