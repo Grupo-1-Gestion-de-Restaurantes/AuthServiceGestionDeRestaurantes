@@ -15,6 +15,7 @@ public interface IUserRepository
     Task<bool> ExistsByUsernameAsync(string username);
     Task<User> UpdateAsync(User user);
     Task<bool> DeleteAsync(string id);
+    Task<bool> HardDeleteForRollBackAsync(string id);
     Task UpdateUserRoleAsync(string userId, string roleId);
     Task DeleteTwoFactorAuthAsync(string twoFactorAuthId);
     Task AddTwoFactorAuthAsync(TwoFactorAuth twoFactorAuth);

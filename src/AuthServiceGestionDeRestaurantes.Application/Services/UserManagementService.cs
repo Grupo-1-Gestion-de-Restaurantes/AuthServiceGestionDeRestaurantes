@@ -15,7 +15,7 @@ public class UserManagementService(IUserRepository users, IRoleRepository roles,
         // Validate inputs
         if (string.IsNullOrWhiteSpace(userId)) throw new ArgumentException("Invalid userId", nameof(userId));
         if (!RoleConstants.AllowedRoles.Contains(roleName))
-            throw new InvalidOperationException($"Role not allowed. Use {RoleConstants.ADMIN_ROLE} or {RoleConstants.USER_ROLE}");
+            throw new InvalidOperationException($"Role not allowed. Use {RoleConstants.ADMIN_ROLE} or {RoleConstants.CLIENT_ROLE} or {RoleConstants.MANAGER_ROLE} or {RoleConstants.EMPLOYEE_ROLE}");
 
         // Load user with roles
         var user = await users.GetByIdAsync(userId);

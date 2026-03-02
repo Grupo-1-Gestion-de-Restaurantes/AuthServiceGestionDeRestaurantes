@@ -19,6 +19,28 @@ public class UserRepository : IUserRepository
         _logger = logger;
     }
 
+    public async Task<bool> HardDeleteForRollBackAsync(string id)
+    {
+        await context.UserRoles.Where(ur => ur.UserId == id).ExecuteDeleteAsync();
+        await context.UserProfiles.Where(rt => rt.UserId == id).ExecuteDeleteAsync();
+        await context.UserEmails.Where(rt => rt.UserId == id).ExecuteDeleteAsync();
+        await context.UserPasswordResets.Where(rt => rt.UserId == id).ExecuteDeleteAsync();
+        await context.TwoFactorAuths.Where(rt => rt.UserId == id).ExecuteDeleteAsync();
+
+        var deletedRows = await context.Users
+            .Where(u => u.Id == id)
+            .ExecuteDeleteAsync();
+
+        if (deletedRows == 0)
+        {
+            _logger.LogWarning("Attempted hard delete for non-existent user with id {UserId}", id);
+            return false;
+        }
+
+        _logger.LogInformation("Hard deleted user with id {UserId} and its dependencies", id);
+        return true;
+    }
+
     public async Task<User> GetByIdAsync(string id)
     {
         var user = await context.Users
@@ -27,9 +49,9 @@ public class UserRepository : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .Include(u => u.TwoFactorAuth)  
+            .Include(u => u.TwoFactorAuth)
             .FirstOrDefaultAsync(u => u.Id == id);
-            
+
         return user ?? throw new InvalidOperationException($"User with id {id} not found.");
     }
 
@@ -65,7 +87,7 @@ public class UserRepository : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.UserEmail != null && 
+            .FirstOrDefaultAsync(u => u.UserEmail != null &&
                                     u.UserEmail.EmailVerificationToken == token &&
                                     u.UserEmail.EmailVerificationTokenExpiry > DateTime.UtcNow);
     }
@@ -78,7 +100,7 @@ public class UserRepository : IUserRepository
             .Include(u => u.UserPasswordReset)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.UserPasswordReset != null && 
+            .FirstOrDefaultAsync(u => u.UserPasswordReset != null &&
                                     u.UserPasswordReset.PasswordResetToken == token &&
                                     u.UserPasswordReset.PasswordResetTokenExpiry > DateTime.UtcNow);
     }
