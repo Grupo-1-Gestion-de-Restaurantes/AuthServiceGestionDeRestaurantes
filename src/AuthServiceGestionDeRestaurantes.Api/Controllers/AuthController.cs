@@ -7,17 +7,27 @@ using AuthServiceGestionDeRestaurantes.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Swashbuckle.AspNetCore.Annotations;
+using AuthServiceGestionDeRestaurantes.Api.Models;
 
 
 namespace AuthServiceGestionDeRestaurantes.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
+[SwaggerTag("Controlador de autenticación y gestión de usuarios")]
 public class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpGet("profile")]
     [Authorize]
-    public async Task<ActionResult<object>> GetProfile()
+    [SwaggerOperation(
+        Summary = "Obtiene el perfil del usuario autenticado",
+        Description = "Devuelve información básica del usuario actualmente autenticado, como username, email, rol y si tiene 2FA habilitado."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProfile()
     {
         var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
         if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
@@ -40,6 +50,10 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("register")]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB límite
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Registra un nuevo usuario",
+        Description = "Crea una cuenta nueva. Requiere envío mediante Form-Data para soportar la subida de imagen de perfil."
+    )]
     public async Task<ActionResult<RegisterResponseDto>> Register([FromForm] RegisterDto registerDto)
     {
         var result = await authService.RegisterAsync(registerDto);
@@ -49,6 +63,12 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+    Summary = "Inicia sesión de usuario",
+    Description = "Recibe email y contraseña. Devuelve un token JWT si las credenciales son válidas."
+)]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto loginDto)
     {
         var result = await authService.LoginAsync(loginDto);
@@ -57,6 +77,12 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("verify-email")]
     [EnableRateLimiting("ApiPolicy")]
+    [SwaggerOperation(
+        Summary = "Verifica el correo electrónico",
+        Description = "Confirma la propiedad de la cuenta validando el código numérico enviado al email del usuario."
+    )]
+    [ProducesResponseType(typeof(EmailResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<EmailResponseDto>> VerifyEmail([FromBody] VerifyEmailDto verifyEmailDto)
     {
         var result = await authService.VerifyEmailAsync(verifyEmailDto);
@@ -65,6 +91,10 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("resend-verification")]
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Reenviar email de verificación",
+        Description = "Envía nuevamente el código de verificación al correo del usuario. Útil si el usuario no recibió o perdió el email original."
+    )]
     public async Task<ActionResult<EmailResponseDto>> ResendVerification([FromBody] ResendVerificationDto resendDto)
     {
         var result = await authService.ResendVerificationEmailAsync(resendDto);
@@ -90,6 +120,10 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("forgot-password")]
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Solicita restablecimiento de contraseña",
+        Description = "Envía un correo con instrucciones para restablecer la contraseña del usuario."
+    )]
     public async Task<ActionResult<EmailResponseDto>> ForgotPassword([FromBody] ForgotPasswordDto forgotPasswordDto)
     {
         var result = await authService.ForgotPasswordAsync(forgotPasswordDto);
@@ -106,6 +140,10 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("reset-password")]
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Restablece la contraseña",
+        Description = "Permite al usuario restablecer su contraseña usando el token de recuperación recibido por correo."
+    )]
     public async Task<ActionResult<EmailResponseDto>> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
     {
         var result = await authService.ResetPasswordAsync(resetPasswordDto);
@@ -114,6 +152,10 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpPost("verify-2fa")]
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Verifica el código 2FA",
+        Description = "Valida el código de autenticación de dos factores generado por la app autenticadora. Requerido para completar el login si el usuario tiene 2FA habilitado."
+    )]
     public async Task<ActionResult<AuthResponseDto>> VerifyTwoFactor([FromBody] VerifyTwoFactorDto dto)
     {
         var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
@@ -160,6 +202,12 @@ public class AuthController(IAuthService authService) : ControllerBase
     [Authorize]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB límite
     [EnableRateLimiting("AuthPolicy")]
+    [SwaggerOperation(
+        Summary = "Registra un nuevo usuario o empleado",
+        Description = "Crea una cuenta nueva. Requiere envío mediante Form-Data para soportar la subida de imagen de perfil."
+    )]
+    [ProducesResponseType(typeof(RegisterResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<UserResponseDto>> RegisterEmployee([FromForm] RegisterEmployeeDto dto)
     {
 
@@ -197,6 +245,10 @@ public class AuthController(IAuthService authService) : ControllerBase
 
     [HttpDelete("rollbackUser/{id}")]
     [Authorize]
+    [SwaggerOperation(
+        Summary = "Elimina un usuario de forma permanente",
+        Description = "Elimina completamente un usuario de la base de datos. Requiere rol de MANAGER_ROLE o ADMIN_ROLE. IDEAL PARA HACER ROLLBACK DESDE EL MODULO DE ADMIN"
+    )]
     public async Task<IActionResult> HardDeleteForRollBack(string id)
     {
 
