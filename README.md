@@ -8,13 +8,17 @@ El sistema está construido sobre el ecosistema de Microsoft utilizando **C#** c
 
 ## Instalación y Configuración
 
+## Configuración de appsettings
+El sistema depende de configuraciones críticas para funcionar. La base de datos corre en el puerto 5435 localmente. El secreto del JWT, la configuración de la cuenta de Gmail para envíos SMTP y las credenciales de la API de Cloudinary deben mantenerse sincronizadas con este archivo para que el registro de usuarios y la verificación de correos funcionen sin problemas.
+
+## Instalación y Ejecución
+
 1. Clonar el repositorio en el entorno local.
-3. Asegurarse de tener puestas las variables de entorno en el archivo appsettings.json
-2. Ejecutar el comando para levantar el servidor de base de datos y ejecutar el proyecto
-```bash
-docker compose up -d
-dotnet run --project .\src\AuthServiceGestionDeRestaurantes.Api\
-```
+2. Revisar y ajustar el archivo `appsettings.json` (claves de JWT, Cloudinary, SMTP, base de datos).
+3. Levantar el contenedor de la base de datos PostgreSQL ejecutando el comando `docker compose up -d`.
+4. Compilar la solución para restaurar las dependencias ejecutando `dotnet build`.
+5. Iniciar el servidor ejecutando `dotnet run --project .\src\AuthServiceGestionDeRestaurantes.Api\`.
+
 
 ## Características Principales
 ### Funciones de Administrador
@@ -23,10 +27,14 @@ El sistema se inicializa con un rol de administrador por defecto. Los usuarios c
 ### Funciones de Cliente / Empleado
 Los usuarios pueden crear su cuenta subiendo directamente su imagen de perfil a la nube. Deben verificar su correo electrónico mediante un código numérico para garantizar la propiedad de la cuenta. Además, pueden elevar la seguridad habilitando la Autenticación de Dos Factores (2FA) compatible con Google Authenticator/Authy, generando códigos de recuperación en caso de perder acceso a su dispositivo móvil.
 
-## Rutas Principales
-POST	/api/v1/auth/login	(Inicia sesión y devuelve un token JWT (o pide 2FA))
-POST	/api/v1/auth/register	Registra un usuario nuevo con imagen de perfil (Form-Data)
-GET	/api/v1/auth/profile	Obtiene la información del perfil del usuario autenticado
-POST	/api/v1/auth/verify-email	Verifica la cuenta del usuario mediante un código PIN
-POST	/api/v1/twofactor/setup	Genera la llave y código QR para configurar el 2FA
-PUT	/api/v1/users/{userId}/role	(Admin) Asigna o actualiza el rol de un usuario existente
+## Rutas Principales (Endpoints)
+
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| **POST** | `/api/v1/auth/login` | Inicia sesión y devuelve un token JWT (o pide 2FA) |
+| **POST** | `/api/v1/auth/register` | Registra un usuario nuevo con imagen de perfil (Form-Data) |
+| **GET** | `/api/v1/auth/profile` | Obtiene la información del perfil del usuario autenticado |
+| **POST** | `/api/v1/auth/verify-email` | Verifica la cuenta del usuario mediante un código PIN |
+| **POST** | `/api/v1/twofactor/setup` | Genera la llave y código QR para configurar el 2FA |
+| **PUT** | `/api/v1/users/{userId}/role` | (Admin) Asigna o actualiza el rol de un usuario existente |
+| **GET** | `/api/v1/health` | Verifica el estado y salud del microservicio |
