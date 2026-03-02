@@ -27,6 +27,10 @@ El sistema se inicializa con un rol de administrador por defecto. Los usuarios c
 ### Funciones de Cliente / Empleado
 Los usuarios pueden crear su cuenta subiendo directamente su imagen de perfil a la nube. Deben verificar su correo electrónico mediante un código numérico para garantizar la propiedad de la cuenta. Además, pueden elevar la seguridad habilitando la Autenticación de Dos Factores (2FA) compatible con Google Authenticator/Authy, generando códigos de recuperación en caso de perder acceso a su dispositivo móvil.
 
+## Documentación
+En la entrega se adjuntan colecciones de Postman. Para ir a la documentación con swager acceda a : [swagger](http://localhost:5233/swagger/index.html)
+** edite el puerto según lo haya puesto en el .env
+
 ## Rutas Principales (Endpoints)
 
 | Método | Endpoint | Descripción |
