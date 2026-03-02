@@ -24,10 +24,9 @@ El sistema se inicializa con un rol de administrador por defecto. Los usuarios c
 Los usuarios pueden crear su cuenta subiendo directamente su imagen de perfil a la nube. Deben verificar su correo electrónico mediante un código numérico para garantizar la propiedad de la cuenta. Además, pueden elevar la seguridad habilitando la Autenticación de Dos Factores (2FA) compatible con Google Authenticator/Authy, generando códigos de recuperación en caso de perder acceso a su dispositivo móvil.
 
 ## Rutas Principales
-Método,Endpoint,Descripción
-POST,/api/v1/auth/login,Inicia sesión y devuelve un token JWT (o requiere 2FA)
-POST,/api/v1/auth/register,Registro de usuario con imagen de perfil (Form-Data)
-GET,/api/v1/auth/profile,Obtiene la información del perfil del usuario autenticado
-POST,/api/v1/auth/verify-email,Verifica la cuenta mediante código PIN
-POST,/api/v1/twofactor/setup,Genera llave y código QR para configurar 2FA
-PUT,/api/v1/users/{userId}/role,(Admin) Asigna o actualiza el rol de un usuario
+POST	/api/v1/auth/login	(Inicia sesión y devuelve un token JWT (o pide 2FA))
+POST	/api/v1/auth/register	Registra un usuario nuevo con imagen de perfil (Form-Data)
+GET	/api/v1/auth/profile	Obtiene la información del perfil del usuario autenticado
+POST	/api/v1/auth/verify-email	Verifica la cuenta del usuario mediante un código PIN
+POST	/api/v1/twofactor/setup	Genera la llave y código QR para configurar el 2FA
+PUT	/api/v1/users/{userId}/role	(Admin) Asigna o actualiza el rol de un usuario existente
