@@ -47,6 +47,31 @@ public class AuthController(IAuthService authService) : ControllerBase
             data = user
         });
     }
+
+    [HttpPost("update-profile")]
+    [Authorize]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [SwaggerOperation(
+        Summary = "Actualiza el perfil del usuario autenticado",
+        Description = "Permite actualizar nombre, apellido, teléfono y foto de perfil del usuario actual."
+    )]
+    public async Task<ActionResult<UserResponseDto>> UpdateProfile([FromForm] UpdateProfileDto dto)
+    {
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+        if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
+        {
+            return Unauthorized();
+        }
+
+        var result = await authService.UpdateProfileAsync(userIdClaim.Value, dto);
+        return Ok(new
+        {
+            success = true,
+            message = "Perfil actualizado exitosamente",
+            data = result
+        });
+    }
+
     [HttpPost("register")]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB límite
     [EnableRateLimiting("AuthPolicy")]
