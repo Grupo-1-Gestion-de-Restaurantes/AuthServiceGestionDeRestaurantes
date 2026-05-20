@@ -556,6 +556,38 @@ public class AuthService : IAuthService
         return MapToUserResponseDto(user);
     }
 
+    public async Task<UserResponseDto> UpdateProfileAsync(string userId, UpdateProfileDto updateDto)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null) throw new BusinessException("USER_NOT_FOUND", "Usuario no encontrado");
+
+        user.Name = updateDto.Name;
+        user.Surname = updateDto.Surname;
+        user.UserProfile.Phone = updateDto.Phone;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        if (updateDto.ProfilePicture != null && updateDto.ProfilePicture.Size > 0)
+        {
+            var (isValid, errorMessage) = FileValidator.ValidateImage(updateDto.ProfilePicture);
+            if (!isValid) throw new BusinessException(ErrorCodes.INVALID_FILE_FORMAT, errorMessage!);
+
+            try
+            {
+                var fileName = FileValidator.GenerateSecureFileName(updateDto.ProfilePicture.FileName);
+                var profilePicturePath = await _cloudinaryService.UploadImageAsync(updateDto.ProfilePicture, fileName);
+                user.UserProfile.ProfilePicture = profilePicturePath;
+            }
+            catch (Exception)
+            {
+                _logger.LogImageUploadError();
+                throw new BusinessException(ErrorCodes.IMAGE_UPLOAD_FAILED, "Failed to upload profile image");
+            }
+        }
+
+        var updatedUser = await _userRepository.UpdateAsync(user);
+        return MapToUserResponseDto(updatedUser);
+    }
+
     // ==================== MÉTODOS DE 2FA ====================
 
     public async Task<TwoFactorSetupDto> SetupTwoFactorAsync(string userId)
