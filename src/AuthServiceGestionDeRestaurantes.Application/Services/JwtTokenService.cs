@@ -34,11 +34,17 @@ public class JwtTokenService(IConfiguration configuration) : IJwtTokenService
             new Claim("phone", user.UserProfile?.Phone ?? string.Empty)
         };
 
+        // Admins y managers solo cierran sesión manualmente (logout), no por expiración del token.
+        var isStaffRole = role is "ADMIN_ROLE" or "MANAGER_ROLE";
+        var expires = isStaffRole
+            ? DateTime.UtcNow.AddYears(10)
+            : DateTime.UtcNow.AddMinutes(expiryInMinutes);
+
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expiryInMinutes),
+            expires: expires,
             signingCredentials: credentials
         );
 
