@@ -30,6 +30,9 @@ builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddApiDocumentation();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingPolicies();
+// Registra DefaultCorsPolicy / AdminCorsPolicy (SecurityExtensions).
+// Sin esto, UseCors("DefaultCorsPolicy") falla en runtime.
+builder.Services.AddSecurityPolicies(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -103,7 +106,14 @@ app.UseSecurityHeaders(policies => policies
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Core middlewares
-app.UseHttpsRedirection();
+// En Docker/local HTTP puro no hay certificado HTTPS: redirigir rompe healthchecks y clientes.
+// Solo redirigir si hay URL HTTPS configurada explícitamente.
+var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? string.Empty;
+if (urls.Contains("https://", StringComparison.OrdinalIgnoreCase)
+    || app.Configuration.GetValue<bool>("EnableHttpsRedirection"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors("DefaultCorsPolicy");
 app.UseRateLimiter();
 app.UseAuthentication();
