@@ -39,55 +39,65 @@ public static class DataSeeder
             await context.SaveChangesAsync();
         }
 
-        if(!await context.Users.AnyAsync())
+        await EnsureDemoUserAsync(context, "admin1", "admin@gestion.local", "ADMIN123", "Admin", "User", string.Empty, RoleConstants.ADMIN_ROLE);
+        await EnsureDemoUserAsync(context, "cliente1", "cliente@gestion.local", "CLIENTE123", "Cliente", "Demo", "12345678", RoleConstants.CLIENT_ROLE);
+    }
+
+    private static async Task EnsureDemoUserAsync(
+        ApplicationDbContext context,
+        string username,
+        string email,
+        string password,
+        string name,
+        string surname,
+        string phone,
+        string roleName)
+    {
+        var existing = await context.Users.FirstOrDefaultAsync(u => u.Email == email || u.Username == username);
+        if (existing != null) return;
+
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+        if (role == null) return;
+
+        var passwordHasher = new PasswordHashService();
+        var userId = UuidGenerator.GenerateUserId();
+
+        var user = new User
         {
-            var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == RoleConstants.ADMIN_ROLE);
-            if(adminRole != null)
+            Id = userId,
+            Name = name,
+            Surname = surname,
+            Username = username,
+            Email = email,
+            Password = passwordHasher.HashPassword(password),
+            Status = true,
+            UserProfile = new UserProfile
             {
-                var passwordHasher = new PasswordHashService();
-                var profileId = UuidGenerator.GenerateUserId();
-                var emailId = UuidGenerator.GenerateUserId();
-                var userRoleId = UuidGenerator.GenerateUserId();
-                var userId = UuidGenerator.GenerateUserId();
-
-                var adminUser = new User
+                Id = UuidGenerator.GenerateUserId(),
+                UserId = userId,
+                ProfilePicture = string.Empty,
+                Phone = phone
+            },
+            UserEmail = new UserEmail
+            {
+                Id = UuidGenerator.GenerateUserId(),
+                UserId = userId,
+                EmailVerified = true,
+                EmailVerificationToken = null,
+                EmailVerificationTokenExpiry = null
+            },
+            UserRoles =
+            [
+                new UserRole
                 {
-                    Id = userId,
-                    Name = "Admin",
-                    Surname =  "User",
-                    Username = "admin1",
-                    Email = "admin@gestion.local",
-                    Password = passwordHasher.HashPassword("ADMIN123"),
-                    Status = true,
-                    UserProfile = new UserProfile
-                    {
-                        Id = profileId,
-                        UserId = userId,
-                        ProfilePicture = string.Empty,
-                        Phone = string.Empty
-                    },
-                    UserEmail = new UserEmail
-                    {
-                        Id = emailId,
-                        UserId = userId,
-                        EmailVerified = true,
-                        EmailVerificationToken = null,
-                        EmailVerificationTokenExpiry = null
-                    },
-                    UserRoles =
-                    [
-                        new UserRole
-                        {
-                            Id = userRoleId,
-                            UserId = userId,
-                            RoleId = adminRole.Id
-                        }
-                    ]
-                };
+                    Id = UuidGenerator.GenerateUserId(),
+                    UserId = userId,
+                    RoleId = role.Id
+                }
+            ]
+        };
 
-                await context.Users.AddAsync(adminUser);
-                await context.SaveChangesAsync();
-            }
-        }
+        await context.Users.AddAsync(user);
+        await context.SaveChangesAsync();
     }
 }

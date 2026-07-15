@@ -1,3 +1,5 @@
+# LEGACY — solo Postgres del subproyecto Auth.
+# Preferir el compose de la raíz: SistemaRestaurnate/docker-compose.yml
 version: "3.8"
 
 services:
