@@ -9,12 +9,50 @@ El sistema está construido sobre el ecosistema de Microsoft utilizando **C#** c
 ## Instalación y Configuración
 
 ## Configuración de appsettings
-El sistema depende de configuraciones críticas para funcionar. La base de datos corre en el puerto 5435 localmente. El secreto del JWT, la configuración de la cuenta de Gmail para envíos SMTP y las credenciales de la API de Cloudinary deben mantenerse sincronizadas con este archivo para que el registro de usuarios y la verificación de correos funcionen sin problemas.
+
+El sistema depende de configuraciones críticas para funcionar. La base de datos corre en el puerto 5435 localmente. El secreto del JWT, las credenciales de Cloudinary y la **API key de Resend** (envío de correos) deben configurarse de forma segura.
+
+### Correos con Resend
+
+El AuthService envía correos transaccionales (verificación, reset de contraseña y bienvenida) mediante la [API de Resend](https://resend.com), no SMTP. Así funciona de forma fiable en Railway y otros PaaS.
+
+En `appsettings.json` solo va la **estructura** (sin secretos reales):
+
+```json
+"ResendSettings": {
+  "ApiKey": "",
+  "FromEmail": "Express <onboarding@resend.dev>",
+  "FromName": "Express",
+  "Enabled": true
+}
+```
+
+| Entorno | Dónde poner la API key |
+| --- | --- |
+| Local | `appsettings.Development.json` (ignorado por git) o variable `ResendSettings__ApiKey` / `RESEND_API_KEY` |
+| Railway / producción | Variables de entorno (nunca en el repositorio) |
+
+**Variables recomendadas en Railway:**
+
+```
+ResendSettings__ApiKey=re_xxxxxxxx
+ResendSettings__FromEmail=Express <onboarding@resend.dev>
+ResendSettings__FromName=Express
+ResendSettings__Enabled=true
+AppSettings__FrontendUrl=https://tu-frontend.web.app
+```
+
+Notas:
+
+- Sin dominio verificado en Resend, usa `onboarding@resend.dev` como remitente de prueba.
+- Con dominio verificado: `Express <noreply@tudominio.com>`.
+- `AppSettings:FrontendUrl` debe ser la URL pública del cliente (los links de verificación/reset la usan).
+- **Nunca** subas la API key real a git ni la dejes hardcodeada en `appsettings.json`.
 
 ## Instalación y Ejecución
 
 1. Clonar el repositorio en el entorno local.
-2. Revisar y ajustar el archivo `appsettings.json` (claves de JWT, Cloudinary, SMTP, base de datos).
+2. Revisar `appsettings.json` (JWT, Cloudinary, base de datos) y configurar Resend de forma segura (User Secrets, `appsettings.Development.json` o variables de entorno).
 3. Levantar el contenedor de la base de datos PostgreSQL ejecutando el comando `docker compose up -d`.
 4. Compilar la solución para restaurar las dependencias ejecutando `dotnet build`.
 5. Iniciar el servidor ejecutando `dotnet run --project .\src\AuthServiceGestionDeRestaurantes.Api\`.
