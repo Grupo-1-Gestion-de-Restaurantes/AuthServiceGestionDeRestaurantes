@@ -1,173 +1,277 @@
+using System.Net;
+using System.Text;
+using AuthServiceGestionDeRestaurantes.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
-using AuthServiceGestionDeRestaurantes.Application.Interfaces;
+using Resend;
 
 namespace AuthServiceGestionDeRestaurantes.Application.Services;
 
-public class EmailService(IConfiguration configuration, ILogger<EmailService> logger) : IEmailService
+public class EmailService(
+    IResend resend,
+    IConfiguration configuration,
+    ILogger<EmailService> logger) : IEmailService
 {
+    private const string BrandName = "Express";
+    private const string BrandTagline = "Express Space Station";
+
     public async Task SendEmailVerificationAsync(string email, string username, string token)
     {
-        var subject = "Verify your email address";
-        var verificationUrl = $"{configuration["AppSettings:FrontendUrl"]}/verify-email?token={token}";
+        var subject = $"Verifica tu correo · {BrandName}";
+        var safeUsername = WebUtility.HtmlEncode(username);
+        var verificationUrl = $"{GetFrontendUrl()}/verify-email?token={Uri.EscapeDataString(token)}";
 
-        var body = $@"
-            <h2>Welcome {username}!</h2>
-            <p>Please verify your email address by clicking the link below:</p>
-            <a href='{verificationUrl}' style='background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>
-                Verify Email
-            </a>
-            <p>If you cannot click the link, copy and paste this URL into your browser:</p>
-            <p>{verificationUrl}</p>
-            <p>This link will expire in 24 hours.</p>
-            <p>If you didn't create an account, please ignore this email.</p>
-        ";
+        var bodyContent = $@"
+            <p style=""margin:0 0 16px;color:#f0f0f2;font-size:16px;line-height:1.6;"">
+              Hola <strong style=""color:#F1D302;"">{safeUsername}</strong>,
+            </p>
+            <p style=""margin:0 0 16px;color:#9ca3af;font-size:15px;line-height:1.6;"">
+              Gracias por unirte a <strong style=""color:#f0f0f2;"">{BrandName}</strong>.
+              Confirma tu correo para activar tu cuenta y empezar a explorar la estación.
+            </p>
+            <p style=""margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.5;"">
+              Este enlace expira en <strong style=""color:#f0f0f2;"">24 horas</strong>.
+              Si no creaste esta cuenta, puedes ignorar este mensaje.
+            </p>";
 
-        await SendEmailAsync(email, subject, body);
+        var html = BuildEmailLayout(
+            title: "Verifica tu correo",
+            subtitle: "Un paso más para activar tu cuenta",
+            bodyHtml: bodyContent,
+            ctaLabel: "Verificar correo",
+            ctaUrl: verificationUrl,
+            ctaBackground: "#C1292E",
+            ctaColor: "#FFFFFF",
+            fallbackUrl: verificationUrl);
+
+        await SendEmailAsync(email, subject, html);
     }
 
     public async Task SendPasswordResetAsync(string email, string username, string token)
     {
-        var subject = "Reset your password";
-        var resetUrl = $"{configuration["AppSettings:FrontendUrl"]}/reset-password?token={token}";
+        var subject = $"Restablecer contraseña · {BrandName}";
+        var safeUsername = WebUtility.HtmlEncode(username);
+        var resetUrl = $"{GetFrontendUrl()}/reset-password?token={Uri.EscapeDataString(token)}";
 
-        var body = $@"
-            <h2>Password Reset Request</h2>
-            <p>Hello {username},</p>
-            <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href='{resetUrl}' style='background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>
-                Reset Password
-            </a>
-            <p>If you cannot click the link, copy and paste this URL into your browser:</p>
-            <p>{resetUrl}</p>
-            <p>This link will expire in 1 hour.</p>
-            <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
-        ";
+        var bodyContent = $@"
+            <p style=""margin:0 0 16px;color:#f0f0f2;font-size:16px;line-height:1.6;"">
+              Hola <strong style=""color:#F1D302;"">{safeUsername}</strong>,
+            </p>
+            <p style=""margin:0 0 16px;color:#9ca3af;font-size:15px;line-height:1.6;"">
+              Recibimos una solicitud para restablecer la contraseña de tu cuenta en {BrandName}.
+              Si fuiste tú, usa el botón de abajo para elegir una nueva.
+            </p>
+            <p style=""margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.5;"">
+              Este enlace expira en <strong style=""color:#f0f0f2;"">1 hora</strong>.
+              Si no solicitaste el cambio, ignora este correo y tu contraseña no se modificará.
+            </p>";
 
-        await SendEmailAsync(email, subject, body);
+        var html = BuildEmailLayout(
+            title: "Restablecer contraseña",
+            subtitle: "Solicitud de recuperación de acceso",
+            bodyHtml: bodyContent,
+            ctaLabel: "Restablecer contraseña",
+            ctaUrl: resetUrl,
+            ctaBackground: "#F1D302",
+            ctaColor: "#111317",
+            fallbackUrl: resetUrl);
+
+        await SendEmailAsync(email, subject, html);
     }
 
     public async Task SendWelcomeEmailAsync(string email, string username)
     {
-        var subject = "Welcome to Gestion de Restaurantes!";
+        var subject = $"¡Bienvenido a {BrandName}!";
+        var safeUsername = WebUtility.HtmlEncode(username);
+        var appUrl = GetFrontendUrl();
 
-        var body = $@"
-            <h2>Welcome to Gestion de Restaurantes, {username}!</h2>
-            <p>Your account has been successfully verified and activated.</p>
-            <p>You can now enjoy all the features of our platform.</p>
-            <p>If you have any questions, feel free to contact our support team.</p>
-            <p>Thank you for joining us!</p>
-        ";
+        var bodyContent = $@"
+            <p style=""margin:0 0 16px;color:#f0f0f2;font-size:16px;line-height:1.6;"">
+              ¡Hola <strong style=""color:#F1D302;"">{safeUsername}</strong>!
+            </p>
+            <p style=""margin:0 0 16px;color:#9ca3af;font-size:15px;line-height:1.6;"">
+              Tu correo fue verificado y tu cuenta ya está activa.
+              Ya puedes pedir, reservar mesas y explorar restaurantes en la red {BrandName}.
+            </p>
+            <p style=""margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.5;"">
+              Si tienes dudas, responde a este correo o contacta al equipo de soporte.
+            </p>";
 
-        await SendEmailAsync(email, subject, body);
+        var html = BuildEmailLayout(
+            title: $"Bienvenido a {BrandName}",
+            subtitle: "Tu cuenta está lista para despegar",
+            bodyHtml: bodyContent,
+            ctaLabel: "Ir a Express",
+            ctaUrl: appUrl,
+            ctaBackground: "#C1292E",
+            ctaColor: "#FFFFFF",
+            fallbackUrl: appUrl);
+
+        await SendEmailAsync(email, subject, html);
     }
 
-    private async Task SendEmailAsync(string to, string subject, string body)
+    private async Task SendEmailAsync(string to, string subject, string htmlBody)
     {
-        var smtpSettings = configuration.GetSection("SmtpSettings");
+        var resendSettings = configuration.GetSection("ResendSettings");
+        var enabled = bool.Parse(resendSettings["Enabled"] ?? "true");
+
+        if (!enabled)
+        {
+            logger.LogInformation("Email disabled in configuration. Skipping send");
+            return;
+        }
+
+        var apiKey = resendSettings["ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            apiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+        }
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            logger.LogError("Resend API key is not configured (ResendSettings:ApiKey or RESEND_API_KEY)");
+            throw new InvalidOperationException(
+                "Resend API key is not configured. Set ResendSettings:ApiKey or environment variable RESEND_API_KEY.");
+        }
+
+        var fromEmail = resendSettings["FromEmail"];
+        if (string.IsNullOrWhiteSpace(fromEmail))
+        {
+            var fromName = resendSettings["FromName"] ?? BrandName;
+            fromEmail = $"{fromName} <onboarding@resend.dev>";
+        }
 
         try
         {
-            // Verificar si el email está habilitado
-            var enabled = bool.Parse(smtpSettings["Enabled"] ?? "true");
-            if (!enabled)
+            var message = new EmailMessage
             {
-                logger.LogInformation("Email disabled in configuration. Skipping send");
-                return;
+                From = fromEmail,
+                Subject = subject,
+                HtmlBody = htmlBody
+            };
+            message.To.Add(to);
+
+            var response = await resend.EmailSendAsync(message);
+
+            if (!response.Success)
+            {
+                var error = response.Exception;
+                logger.LogError(error, "Resend failed to send email");
+                throw new InvalidOperationException(
+                    $"Resend failed to send email: {error?.Message ?? "unknown error"}",
+                    error);
             }
 
-            // Validar configuración
-            var host = smtpSettings["Host"];
-            var portString = smtpSettings["Port"];
-            var username = smtpSettings["Username"];
-            var password = smtpSettings["Password"];
-            var fromEmail = smtpSettings["FromEmail"];
-            var fromName = smtpSettings["FromName"];
-
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-            {
-                logger.LogError("SMTP settings are not properly configured");
-                throw new InvalidOperationException("SMTP settings are not properly configured");
-            }
-
-            // Avoid logging sensitive SMTP details
-
-            var port = int.Parse(portString ?? "587");
-
-            using var client = new SmtpClient();
-
-            // Configurar timeout
-            var timeoutMs = int.Parse(smtpSettings["Timeout"] ?? "30000");
-            client.Timeout = timeoutMs;
-
-            // FIX: Bypass SSL (Cloudinary, etc.)
-            client.CheckCertificateRevocation = false;
-            client.ServerCertificateValidationCallback = (s, c, h, e) => true;
-
-            try
-            {
-                // Verificar configuración de SSL implícito
-                var useImplicitSsl = bool.Parse(smtpSettings["UseImplicitSsl"] ?? "false");
-
-                // Configuración específica por puerto y SSL
-                if (useImplicitSsl || port == 465)
-                {
-                    await client.ConnectAsync(host, port, SecureSocketOptions.SslOnConnect);
-                }
-                else if (port == 587)
-                {
-                    await client.ConnectAsync(host, port, SecureSocketOptions.StartTls);
-                }
-                else
-                {
-                    await client.ConnectAsync(host, port, SecureSocketOptions.Auto);
-                }
-
-                // Autenticación
-                await client.AuthenticateAsync(username, password);
-
-                // Crear mensaje con MimeKit
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(fromName, fromEmail));
-                message.To.Add(new MailboxAddress("", to));
-                message.Subject = subject;
-                message.Body = new TextPart("html") { Text = body };
-
-                // Enviar
-                await client.SendAsync(message);
-                logger.LogInformation("Email sent successfully");
-
-                await client.DisconnectAsync(true);
-                logger.LogInformation("Email pipeline completed");
-            }
-            catch (MailKit.Security.AuthenticationException authEx)
-            {
-                logger.LogError(authEx, "Gmail authentication failed. Check app password.");
-                throw new InvalidOperationException($"Gmail authentication failed: {authEx.Message}. Please check your app password.", authEx);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to send email");
-                throw;
-            }
-            logger.LogInformation("Email processed");
+            logger.LogInformation("Email sent successfully via Resend");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            logger.LogError(ex, "Failed to send email");
-
-            // Verificar si usar fallback
-            var useFallback = bool.Parse(smtpSettings["UseFallback"] ?? "false");
-            if (useFallback)
-            {
-                logger.LogWarning("Using email fallback");
-                return; // No fallar, solo logear
-            }
-
+            logger.LogError(ex, "Failed to send email via Resend");
             throw new InvalidOperationException($"Failed to send email: {ex.Message}", ex);
         }
+    }
+
+    private string GetFrontendUrl()
+    {
+        var url = configuration["AppSettings:FrontendUrl"]?.TrimEnd('/');
+        return string.IsNullOrWhiteSpace(url) ? "http://localhost:5173" : url;
+    }
+
+    private static string BuildEmailLayout(
+        string title,
+        string subtitle,
+        string bodyHtml,
+        string ctaLabel,
+        string ctaUrl,
+        string ctaBackground,
+        string ctaColor,
+        string fallbackUrl)
+    {
+        var safeTitle = WebUtility.HtmlEncode(title);
+        var safeSubtitle = WebUtility.HtmlEncode(subtitle);
+        var safeCtaLabel = WebUtility.HtmlEncode(ctaLabel);
+        var safeCtaUrl = WebUtility.HtmlEncode(ctaUrl);
+        var safeFallback = WebUtility.HtmlEncode(fallbackUrl);
+        var year = DateTime.UtcNow.Year;
+
+        var sb = new StringBuilder();
+        sb.Append($@"
+<!DOCTYPE html>
+<html lang=""es"">
+<head>
+  <meta charset=""utf-8"" />
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
+  <meta http-equiv=""X-UA-Compatible"" content=""IE=edge"" />
+  <title>{safeTitle}</title>
+</head>
+<body style=""margin:0;padding:0;background-color:#111317;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;"">
+  <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background-color:#111317;padding:32px 12px;"">
+    <tr>
+      <td align=""center"">
+        <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""max-width:560px;background-color:#16181f;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;"">
+          <tr>
+            <td style=""height:4px;background-color:#C1292E;font-size:0;line-height:0;"">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style=""padding:28px 28px 8px 28px;text-align:center;"">
+              <div style=""font-family:Impact,Haettenschweiler,'Arial Black',sans-serif;font-size:28px;letter-spacing:0.12em;color:#f0f0f2;text-transform:uppercase;"">
+                EXPRESS
+              </div>
+              <div style=""margin-top:6px;font-size:11px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#F1D302;"">
+                {WebUtility.HtmlEncode(BrandTagline)}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style=""padding:20px 28px 8px 28px;text-align:center;"">
+              <h1 style=""margin:0 0 8px;font-size:22px;line-height:1.3;color:#f0f0f2;font-weight:700;"">
+                {safeTitle}
+              </h1>
+              <p style=""margin:0;color:#9ca3af;font-size:14px;line-height:1.5;"">
+                {safeSubtitle}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style=""padding:20px 28px 8px 28px;"">
+              {bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td align=""center"" style=""padding:20px 28px 8px 28px;"">
+              <a href=""{safeCtaUrl}""
+                 style=""display:inline-block;background-color:{ctaBackground};color:{ctaColor};text-decoration:none;font-weight:700;font-size:15px;letter-spacing:0.04em;padding:14px 28px;border-radius:10px;border:3px solid #000000;box-shadow:4px 4px 0 #000000;"">
+                {safeCtaLabel}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style=""padding:20px 28px 8px 28px;"">
+              <p style=""margin:0 0 6px;color:#9ca3af;font-size:12px;line-height:1.5;"">
+                Si el botón no funciona, copia y pega este enlace en tu navegador:
+              </p>
+              <p style=""margin:0;word-break:break-all;font-size:12px;line-height:1.5;"">
+                <a href=""{safeFallback}"" style=""color:#F1D302;text-decoration:underline;"">{safeFallback}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style=""padding:28px;border-top:1px solid rgba(255,255,255,0.06);"">
+              <p style=""margin:0 0 4px;color:rgba(245,245,247,0.4);font-size:11px;text-align:center;line-height:1.5;"">
+                © {year} {WebUtility.HtmlEncode(BrandTagline)}. Todos los derechos reservados.
+              </p>
+              <p style=""margin:0;color:rgba(245,245,247,0.35);font-size:11px;text-align:center;line-height:1.5;"">
+                La estación espacial de la gestión de restaurantes.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>");
+
+        return sb.ToString();
     }
 }

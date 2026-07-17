@@ -5,6 +5,7 @@ using AuthServiceGestionDeRestaurantes.Persistence.Data;
 using AuthServiceGestionDeRestaurantes.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Resend;
 
 namespace AuthServiceGestionDeRestaurantes.Api.Extensions;
 
@@ -28,6 +29,21 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(dataSource)
                 .UseSnakeCaseNamingConvention());
+
+        // Resend email client (API key via config or RESEND_API_KEY env var — never hardcode secrets)
+        services.AddOptions();
+        services.AddHttpClient<ResendClient>();
+        services.Configure<ResendClientOptions>(o =>
+        {
+            var apiKey = configuration["ResendSettings:ApiKey"];
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                apiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+            }
+
+            o.ApiToken = apiKey ?? string.Empty;
+        });
+        services.AddTransient<IResend, ResendClient>();
         
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
