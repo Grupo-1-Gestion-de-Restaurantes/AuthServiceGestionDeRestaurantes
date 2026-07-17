@@ -32,8 +32,7 @@ public static class ServiceCollectionExtensions
 
         // Resend email client (API key via config or RESEND_API_KEY env var — never hardcode secrets)
         services.AddOptions();
-        services.AddHttpClient<ResendClient>();
-        services.Configure<ResendClientOptions>(o =>
+        services.AddResend(o =>
         {
             var apiKey = configuration["ResendSettings:ApiKey"];
             if (string.IsNullOrWhiteSpace(apiKey))
@@ -42,9 +41,12 @@ public static class ServiceCollectionExtensions
             }
 
             o.ApiToken = apiKey ?? string.Empty;
+            o.ThrowExceptions = false;
+        }).ConfigureHttpClient(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
         });
-        services.AddTransient<IResend, ResendClient>();
-        
+
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IAuthService, AuthService>();

@@ -260,18 +260,21 @@ public class AuthService : IAuthService
         var createdUser = await _userRepository.CreateAsync(user);
         _logger.LogUserRegistered(createdUser.Username);
 
-        _ = Task.Run(async () =>
+        // Await (no Task.Run): fire-and-forget with scoped IEmailService/IResend is cancelled
+        // when the HTTP request scope is disposed after the 201 response is written.
+        try
         {
-            try
-            {
-                await _emailService.SendEmailVerificationAsync(createdUser.Email, createdUser.Username, emailVerificationToken);
-                _logger.LogInformation("Verification email sent");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send verification email");
-            }
-        });
+            await _emailService.SendEmailVerificationAsync(
+                createdUser.Email,
+                createdUser.Username,
+                emailVerificationToken);
+            _logger.LogInformation("Verification email sent");
+        }
+        catch (Exception ex)
+        {
+            // Usuario ya creado: no fallar el registro si Resend falla; puede reenviar verificación.
+            _logger.LogError(ex, "Failed to send verification email");
+        }
 
         return new RegisterResponseDto
         {
